@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-server
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: gov_db
+      MYSQL_USER: flink_user
+      MYSQL_PASSWORD: flink_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d
+    networks:
+      - flink-network
+    restart: unless-stopped
+
+  jobmanager:
+    image: flink:1.17.1-scala_2.12-java8
+    container_name: flink-jobmanager
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 4
+        parallelism.default: 2
+        env.java.opts: -Xmx2g
+    volumes:
+      - ./lib:/opt/flink/lib
+      - ./sql:/opt/flink/sql
+    networks:
+      - flink-network
+    depends_on:
+      - mysql
+    restart: unless-stopped
+
+  taskmanager:
+    image: flink:1.17.1-scala_2.12-java8
+    container_name: flink-taskmanager
+    ports:
+      - "8082:8082"
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 4
+        parallelism.default: 2
+        env.java.opts: -Xmx2g
+    volumes:
+      - ./lib:/opt/flink/lib
+      - ./sql:/opt/flink/sql
+    networks:
+      - flink-network
+    restart: unless-stopped
+
+networks:
+  flink-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
